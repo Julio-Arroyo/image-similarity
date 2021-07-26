@@ -1,0 +1,113 @@
+from tensorflow.keras.applications.vgg16 import VGG16
+from tensorflow.keras.preprocessing import image
+from tensorflow.keras.applications.vgg16 import preprocess_input
+from tensorflow.keras.models import Model
+from IPython.core.display import Image, display
+import numpy as np
+import os, random
+import scipy.io
+
+
+prefix = '/PATH_TO_FOLDER/datasets/array/'
+
+# subjects = ['subj02-el','subj03-yu','subj05-je','subj07-pr','subj08-bo']
+subjects = ['subj02-el']
+
+neural_net = VGG16(weights='imagenet')
+model = Model(inputs=neural_net.input, outputs=neural_net.get_layer('fc2').output)
+
+
+def get_1_idx(arr):
+    'Given "arr", a numpy array of 0\'s and a single 1, return the index where the 1 is.'
+    for i in range(len(arr)):
+        if arr[i] == 1:
+            return i
+    return None
+
+
+def get_features(img_path):
+    img = image.load_img(img_path, target_size=(224, 224))
+    img = image.img_to_array(img)
+    img = np.expand_dims(img, axis=0)
+    img = preprocess_input(img)
+    return model.predict(img)
+
+
+def infer_target():
+    categories = {16:'cat', 18:'horse', 19:'sheep', 20:'cow', 34:'kite', 78:'teddy bear'}
+    subjects = ['subj02-el',]
+    
+    for subject in subjects:
+        #  Keys subjperform: 'scoremat' (has the fixations at which targets were found); 
+        #  'fixmat' (has the order in which images were looked at), 'timemat' (time in which fixations occurred).
+        subjperform = scipy.io.loadmat(prefix + 'psy/subjects_array/' + subject + '/subjperform.mat')
+        
+        scoremat = subjperform['scoremat']  # has the fixations at which targets were found
+        fixmat = subjperform['fixmat']  # has the order in which the images were looked at
+        array_info = scipy.io.loadmat(prefix + 'psy/array.mat')
+        array_info = array_info['MyData']
+        print('SUBJECT: {}'.format(subject))
+        
+        for i in range(scoremat.shape[0]):
+            target_idx = get_1_idx(scoremat[i])  # get idx where target is located
+            if target_idx is None or target_idx == 0 or target_idx == 5:
+                continue
+            sum_features = [0] * 4096
+            potential_targets = [1, 2, 3, 4, 5, 6]
+            #  ef_paths = []  # error fixation paths
+            error_fixations = []
+            
+            # Counters
+            valid_trials = 0
+            inference_count = {1:0, 2:0, 3:0, 4:0, 5:0}
+            above_median = 0
+            
+            for j in range(target_idx):
+                img_num = int(fixmat[i][j])  # image number from 1-6.
+                img_cate = array_info[i][0][3][img_num - 1][0]
+                img_id = array_info[i][0][4][img_num - 1][0]
+                img_path = '{}AllObjCollection/cate{}/img{}.jpg'.format(prefix, img_cate, img_id)
+                error_fixations.append(categories[img_cate])
+                
+                sum_features += get_features(img_path)
+                #  print('NUM TO BE REMOVED: {}'.format(int(img_num)))
+                try:
+                    potential_targets.remove(int(img_num))
+                except ValueError:
+                    print('VALUE ERROR ITERATION (i={}, j={})'.format(i, j))
+            
+            #  print('SUM_FEATURES: {}'.format(sum_features))
+            avg_features = sum_features * (1/ (target_idx))
+            distances = {}  # map: category -> distance
+            #  print('AVG_FEATURES: {}'.format(avg_features))
+            pt_paths = {}  # map: category -> paths
+            
+            for potential_target in potential_targets:
+                img_cate = array_info[i][0][3][potential_target - 1][0]
+                img_id = array_info[i][0][4][potential_target - 1][0]
+                img_path = '{}AllObjCollection/cate{}/img{}.jpg'.format(prefix, img_cate, img_id)
+                pt_paths[categories[img_cate]] = img_path
+
+                distances[categories[img_cate]] = np.linalg.norm(avg_features - get_features(img_path))
+                
+            #  print('DISTANCES: {}'.format(distances))
+            sort_images = sorted(distances.items(), key=lambda x: x[1])
+            #  print('SORT_IMAGES: {}'.format(sort_images))
+            
+            print('TRIAL {}: Actual target category: {}'.format(i + 1, array_info[i][0][0][0]))
+            print('Error fixations: {}'.format(error_fixations))
+            #  for ef_path in ef_paths:
+                #  display(Image(filename=ef_path))
+            print('')
+            print('Potential targets ranked from most to least similar')
+            #  print('LEN SORT_IMAGES: {}. TYPE: {}'.format(len(sort_images), type(sort_images)))
+            for k in range(len(sort_images)):
+                print('#{}. Category: {}. Distance {}'.format(k + 1, sort_images[k][0], sort_images[k][1]))
+                #  display(Image(filename=pt_paths[sort_images[k][0]]))
+                # TODO: if array_info[i][0][1][0] == 
+            print()
+            print()
+        
+        # STATISTICS HERE
+
+infer_target()
