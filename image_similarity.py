@@ -9,23 +9,23 @@ import os, random
 neural_net = VGG16(weights='imagenet')
 model = Model(inputs=neural_net.input, outputs=neural_net.get_layer('fc2').output)
 
-img1_path = random.choice(os.listdir('/Users/jarroyo/OneDrive - California Institute of Technology/SURF 2021 - Kreiman Lab/datasets/array/AllObjCollection (images)/cate16'))
-img2_path = random.choice(os.listdir('/Users/jarroyo/OneDrive - California Institute of Technology/SURF 2021 - Kreiman Lab/datasets/array/AllObjCollection (images)/cate18'))
-img3_path = random.choice(os.listdir('/Users/jarroyo/OneDrive - California Institute of Technology/SURF 2021 - Kreiman Lab/datasets/array/AllObjCollection (images)/cate19'))
-img4_path = random.choice(os.listdir('/Users/jarroyo/OneDrive - California Institute of Technology/SURF 2021 - Kreiman Lab/datasets/array/AllObjCollection (images)/cate20'))
-img5_path = random.choice(os.listdir('/Users/jarroyo/OneDrive - California Institute of Technology/SURF 2021 - Kreiman Lab/datasets/array/AllObjCollection (images)/cate34'))
-img6_path = random.choice(os.listdir('/Users/jarroyo/OneDrive - California Institute of Technology/SURF 2021 - Kreiman Lab/datasets/array/AllObjCollection (images)/cate78'))
+img1_path = random.choice(os.listdir('/Path/to/folder/datasets/array/AllObjCollection (images)/cate16'))
+img2_path = random.choice(os.listdir('/Path/to/folder/datasets/array/AllObjCollection (images)/cate18'))
+img3_path = random.choice(os.listdir('/Path/to/folder/datasets/array/AllObjCollection (images)/cate19'))
+img4_path = random.choice(os.listdir('/Path/to/folder/datasets/array/AllObjCollection (images)/cate20'))
+img5_path = random.choice(os.listdir('/Path/to/folder/datasets/array/AllObjCollection (images)/cate34'))
+img6_path = random.choice(os.listdir('/Path/to/folder/datasets/array/AllObjCollection (images)/cate78'))
 options = ['16', '18', '19', '20', '34', '78']
 choice = random.choice(options)
-error_fixation_path = random.choice(os.listdir('/Users/jarroyo/OneDrive - California Institute of Technology/SURF 2021 - Kreiman Lab/datasets/array/AllObjCollection (images)/cate' + choice))
+error_fixation_path = random.choice(os.listdir('/Path/to/folder//datasets/array/AllObjCollection (images)/cate' + choice))
 
-img1_path = '/Users/jarroyo/OneDrive - California Institute of Technology/SURF 2021 - Kreiman Lab/datasets/array/AllObjCollection (images)/cate16/' + img1_path
-img2_path = '/Users/jarroyo/OneDrive - California Institute of Technology/SURF 2021 - Kreiman Lab/datasets/array/AllObjCollection (images)/cate18/' + img2_path
-img3_path = '/Users/jarroyo/OneDrive - California Institute of Technology/SURF 2021 - Kreiman Lab/datasets/array/AllObjCollection (images)/cate19/' + img3_path
-img4_path = '/Users/jarroyo/OneDrive - California Institute of Technology/SURF 2021 - Kreiman Lab/datasets/array/AllObjCollection (images)/cate20/' + img4_path
-img5_path = '/Users/jarroyo/OneDrive - California Institute of Technology/SURF 2021 - Kreiman Lab/datasets/array/AllObjCollection (images)/cate34/' + img5_path
-img6_path = '/Users/jarroyo/OneDrive - California Institute of Technology/SURF 2021 - Kreiman Lab/datasets/array/AllObjCollection (images)/cate78/' + img6_path
-error_fixation_path = '/Users/jarroyo/OneDrive - California Institute of Technology/SURF 2021 - Kreiman Lab/datasets/array/AllObjCollection (images)/cate' + choice + '/' + error_fixation_path
+img1_path = '/Path/to/folder/datasets/array/AllObjCollection (images)/cate16/' + img1_path
+img2_path = '/Path/to/folder/datasets/array/AllObjCollection (images)/cate18/' + img2_path
+img3_path = '/Path/to/folder/datasets/array/AllObjCollection (images)/cate19/' + img3_path
+img4_path = '/Path/to/folder/datasets/array/AllObjCollection (images)/cate20/' + img4_path
+img5_path = '/Path/to/folder/datasets/array/AllObjCollection (images)/cate34/' + img5_path
+img6_path = '/Path/to/folder/datasets/array/AllObjCollection (images)/cate78/' + img6_path
+error_fixation_path = '/Path/to/folder/datasets/array/AllObjCollection (images)/cate' + choice + '/' + error_fixation_path
 
 img1 = image.load_img(img1_path, target_size=(224,224))
 img2 = image.load_img(img2_path, target_size=(224,224))
