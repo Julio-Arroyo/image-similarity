@@ -1,4 +1,4 @@
-#  July 29
+#  August 3
 
 from tensorflow.keras.applications.vgg16 import VGG16
 from tensorflow.keras.preprocessing import image
