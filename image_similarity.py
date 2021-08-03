@@ -1,136 +1,248 @@
+#  July 29
+
 from tensorflow.keras.applications.vgg16 import VGG16
 from tensorflow.keras.preprocessing import image
 from tensorflow.keras.applications.vgg16 import preprocess_input
 from tensorflow.keras.models import Model
 from IPython.core.display import Image, display
+import matplotlib.pyplot as plt
 import numpy as np
 import os, random
+import scipy.io
+from scipy import spatial
+
+
+prefix = '/Users/jarroyo/OneDrive - California Institute of Technology/SURF 2021 - Kreiman Lab/datasets/array/'
 
 neural_net = VGG16(weights='imagenet')
 model = Model(inputs=neural_net.input, outputs=neural_net.get_layer('fc2').output)
 
-img1_path = random.choice(os.listdir('/Path/to/folder/datasets/array/AllObjCollection (images)/cate16'))
-img2_path = random.choice(os.listdir('/Path/to/folder/datasets/array/AllObjCollection (images)/cate18'))
-img3_path = random.choice(os.listdir('/Path/to/folder/datasets/array/AllObjCollection (images)/cate19'))
-img4_path = random.choice(os.listdir('/Path/to/folder/datasets/array/AllObjCollection (images)/cate20'))
-img5_path = random.choice(os.listdir('/Path/to/folder/datasets/array/AllObjCollection (images)/cate34'))
-img6_path = random.choice(os.listdir('/Path/to/folder/datasets/array/AllObjCollection (images)/cate78'))
-options = ['16', '18', '19', '20', '34', '78']
-choice = random.choice(options)
-error_fixation_path = random.choice(os.listdir('/Path/to/folder//datasets/array/AllObjCollection (images)/cate' + choice))
 
-img1_path = '/Path/to/folder/datasets/array/AllObjCollection (images)/cate16/' + img1_path
-img2_path = '/Path/to/folder/datasets/array/AllObjCollection (images)/cate18/' + img2_path
-img3_path = '/Path/to/folder/datasets/array/AllObjCollection (images)/cate19/' + img3_path
-img4_path = '/Path/to/folder/datasets/array/AllObjCollection (images)/cate20/' + img4_path
-img5_path = '/Path/to/folder/datasets/array/AllObjCollection (images)/cate34/' + img5_path
-img6_path = '/Path/to/folder/datasets/array/AllObjCollection (images)/cate78/' + img6_path
-error_fixation_path = '/Path/to/folder/datasets/array/AllObjCollection (images)/cate' + choice + '/' + error_fixation_path
+def get_1_idx(arr):
+    'Given "arr", a numpy array of 0\'s and a single 1, return the index where the 1 is.'
+    for i in range(len(arr)):
+        if arr[i] == 1:
+            return i
+    return None
 
-img1 = image.load_img(img1_path, target_size=(224,224))
-img2 = image.load_img(img2_path, target_size=(224,224))
-img3 = image.load_img(img3_path, target_size=(224,224))
-img4 = image.load_img(img4_path, target_size=(224,224))
-img5 = image.load_img(img5_path, target_size=(224,224))
-img6 = image.load_img(img6_path, target_size=(224,224))
-error_fixation = image.load_img(error_fixation_path, target_size=(224, 224))
 
-img1a = image.img_to_array(img1)
-img2a = image.img_to_array(img2)
-img3a = image.img_to_array(img3)
-img4a = image.img_to_array(img4)
-img5a = image.img_to_array(img5)
-img6a = image.img_to_array(img6)
-error_fixation_a = image.img_to_array(error_fixation)
+def get_features(img_path):
+    img = image.load_img(img_path, target_size=(224, 224))
+    img = image.img_to_array(img)
+    img = np.expand_dims(img, axis=0)
+    img = preprocess_input(img)
+    return model.predict(img)
 
-img1a = np.expand_dims(img1a, axis=0)
-img2a = np.expand_dims(img2a, axis=0)
-img3a = np.expand_dims(img3a, axis=0)
-img4a = np.expand_dims(img4a, axis=0)
-img5a = np.expand_dims(img5a, axis=0)
-img6a = np.expand_dims(img6a, axis=0)
-error_fixation_a = np.expand_dims(error_fixation_a, axis=0)
 
-img1a = preprocess_input(img1a)
-img2a = preprocess_input(img2a)
-img3a = preprocess_input(img3a)
-img4a = preprocess_input(img4a)
-img5a = preprocess_input(img5a)
-img6a = preprocess_input(img6a)
-error_fixation_a = preprocess_input(error_fixation_a)
+def infer_target(norm='L2'):
+    categories = {16:'cat', 18:'horse', 19:'sheep', 20:'cow', 34:'kite', 78:'teddy bear'}
+    subjects = ['subj02-el','subj03-yu','subj05-je','subj07-pr','subj08-bo']
+    #  subjects = ['subj03-yu','subj05-je','subj07-pr','subj08-bo']
 
-features1 = model.predict(img1a)
-features2 = model.predict(img2a)
-features3 = model.predict(img3a)
-features4 = model.predict(img4a)
-features5 = model.predict(img5a)
-features6 = model.predict(img6a)
-features_ef = model.predict(error_fixation_a)
+    #  results: No. of fixations --> (No. of guesses -> No. of trials that took these many guesses)
+    results = {1:{1:0, 2:0, 3:0, 4:0, 5:0},
+               2:{1:0, 2:0, 3:0, 4:0},
+               3:{1:0, 2:0, 3:0},
+               4:{1:0, 2:0}}
+    num_trials = [0] * 6  # the i-th index will contain the number of trials with i fixations
+    
+    is_cosine = False
+    if norm == 'cosine':
+        is_cosine = True
+    
+    for subject in subjects:
+        #  Keys subjperform: 'scoremat' (has the fixations at which targets were found); 
+        #  'fixmat' (has the order in which images were looked at), 'timemat' (time in which fixations occurred).
+        subjperform = scipy.io.loadmat(prefix + 'psy/subjects_array/' + subject + '/subjperform.mat')
+        
+        scoremat = subjperform['scoremat']  # has the fixations at which targets were found
+        fixmat = subjperform['fixmat']  # has the order in which the images were looked at
+        array_info = scipy.io.loadmat(prefix + 'psy/array.mat')
+        array_info = array_info['MyData']
+        print('SUBJECT: {}'.format(subject))
+        
+        for i in range(scoremat.shape[0]):
+            target_idx = get_1_idx(scoremat[i])  # get idx where target is located
+            if target_idx is None or target_idx == 0 or target_idx == 5:
+                continue
+            else:
+                num_trials[target_idx] += 1
+            
+#             repeated_fixation = False
+#             num_repeated_fixations = 0
+            
+#             sum_features = [0] * 4096
+#             potential_targets = [1, 2, 3, 4, 5, 6]
+#             #  ef_paths = []  # error fixation paths
+#             error_fixations = []
+            
+#             for j in range(target_idx):
+#                 img_num = int(fixmat[i][j])  # image number from 1-6.
+#                 img_cate = array_info[i][0][3][img_num - 1][0]  # in number format
+#                 img_id = array_info[i][0][4][img_num - 1][0]
+#                 img_path = '{}AllObjCollection/cate{}/img{}.jpg'.format(prefix, img_cate, img_id)
+#                 error_fixations.append(categories[img_cate])
+                
+#                 sum_features += get_features(img_path)
+#                 #  print('NUM TO BE REMOVED: {}'.format(int(img_num)))
+#                 try:
+#                     potential_targets.remove(int(img_num))
+#                 except ValueError:
+#                     #  print('VALUE ERROR ITERATION (i={}, j={})'.format(i, j))
+#                     repeated_fixation = True
+#                     num_repeated_fixations += 1
+            
+#             #  print('SUM_FEATURES: {}'.format(sum_features))
+#             avg_features = sum_features * (1/ (target_idx))
+#             distances = {}  # map: category -> distance
+#             #  print('AVG_FEATURES: {}'.format(avg_features))
+#             pt_paths = {}  # map: category -> paths
+            
+#             for potential_target in potential_targets:
+#                 img_cate = array_info[i][0][3][potential_target - 1][0]
+#                 img_id = array_info[i][0][4][potential_target - 1][0]
+#                 img_path = '{}AllObjCollection/cate{}/img{}.jpg'.format(prefix, img_cate, img_id)
+#                 pt_paths[img_cate] = img_path
+#                 if norm == 'L1':
+#                     distances[img_cate] = np.sum(np.absolute(avg_features - get_features(img_path)))
+#                 elif norm == 'cosine':
+#                     distances[img_cate] = 1 - spatial.distance.cosine(avg_features, get_features(img_path))
+#                 elif norm == 'L2':
+#                     distances[img_cate] = np.linalg.norm(avg_features - get_features(img_path))
+#                 else:
+#                     raise ValueError('Norm must be L1, L2, or cosine.')
 
-features1 = features1[0]
-features2 = features2[0]
-features3 = features3[0]
-features4 = features4[0]
-features5 = features5[0]
-features6 = features6[0]
-features_ef = features_ef[0]
+#             sorted_distances = sorted(distances.items(), key=lambda x: x[1], reverse=is_cosine)
+            
+#             #  Make inference
+#             for k in range(len(sorted_distances)):
+#                 if array_info[i][0][1][0] == sorted_distances[k][0]:
+#                     num_fixations = target_idx
+#                     if repeated_fixation:
+#                         num_fixations -= num_repeated_fixations
+#                         repeated_fixation = False
+#                     #  print('num_fixations: {}; k + 1: {}'.format(num_fixations, k + 1))
+#                     results[num_fixations][k + 1] += 1
+#                     break
+    return num_trials
 
-dist1 = np.linalg.norm(features1 - features_ef)
-dist2 = np.linalg.norm(features2 - features_ef)
-dist3 = np.linalg.norm(features3 - features_ef)
-dist4 = np.linalg.norm(features4 - features_ef)
-dist5 = np.linalg.norm(features5 - features_ef)
-dist6 = np.linalg.norm(features5 - features_ef)
 
-distances = {}
-distances['img1'] = dist1
-distances['img2'] = dist2
-distances['img3'] = dist3
-distances['img4'] = dist4
-distances['img5'] = dist5
-distances['img6'] = dist6
+def plot_results(results1, results2):
+    for num_fixations in results1.keys():
+#         plt.bar(results[num_fixations].keys(), results[num_fixations].values(), color='blue')
+#         x_axis = list(range(7 - num_fixations))
+#         plt.xlabel('Number of inferences to find target')
+#         plt.ylabel('Frequency')
+#         plt.xticks(x_axis)
+#         plural = 's'
+#         if num_fixations == 1:
+#             plural = ''
+#         plt.title('{} - Trials with {} error fixation{}'.format(norm, num_fixations, plural))
+#         plt.show()
+        
+        
+        l1 = list(results1[num_fixations].values())
+        l2 = list(results2[num_fixations].values())
+        
+#         print('L1 size {}'.format(len(l1)))
+#         print('L2 size {}'.format(len(l2)))
 
-paths ={}
-paths['img1'] = img1_path
-paths['img2'] = img2_path
-paths['img3'] = img3_path
-paths['img4'] = img4_path
-paths['img5'] = img5_path
-paths['img6'] = img6_path
+        x = np.arange(1,7 - num_fixations)  # the label locations
+        width = 0.35  # the width of the bars
 
-sort_images = sorted(distances.items(), key=lambda x: x[1])
+        fig, ax = plt.subplots()
+        rects1 = ax.bar(x - width/2, l1, width, label='L1')
+        rects2 = ax.bar(x + width/2, l2, width, label='L2')
+        
+        plural = 's'
+        if num_fixations == 1:
+            plural = ''
 
-print('Error fixation: ')
-display(Image(filename=error_fixation_path))
-print('')
-print('All potential targets: ')
-display(Image(filename=img1_path))
-display(Image(filename=img2_path))
-display(Image(filename=img3_path))
-display(Image(filename=img4_path))
-display(Image(filename=img5_path))
-display(Image(filename=img6_path))
-print()
+        # Add some text for labels, title and custom x-axis tick labels, etc.
+        ax.set_ylabel('Frequency')
+        ax.set_title('Trials with {} error fixation{}'.format(num_fixations, plural))
+        ax.set_xlabel('Number of inferences to find target')
+        ax.set_xticks(x)
+        ax.legend()
 
-print('Error fixation: ')
-display(Image(filename=error_fixation_path))
-print('')
-print('Targets ranked from most to least similar')
-print('#1: Distance: ' + distances[sort_images[0][0]].astype('str'))
-display(Image(filename=paths[sort_images[0][0]]))
-print('')
-print('#2: Distance: ' + distances[sort_images[1][0]].astype('str'))
-display(Image(filename=paths[sort_images[1][0]]))
-print('')
-print('#3: Distance: ' + distances[sort_images[2][0]].astype('str'))
-display(Image(filename=paths[sort_images[2][0]]))
-print('')
-print('#4: Distance: ' + distances[sort_images[3][0]].astype('str'))
-display(Image(filename=paths[sort_images[3][0]]))
-print('')
-print('#5: Distance: ' + distances[sort_images[4][0]].astype('str'))
-display(Image(filename=paths[sort_images[4][0]]))
-print('')
-print('#6: Distance: ' + distances[sort_images[5][0]].astype('str'))
-display(Image(filename=paths[sort_images[5][0]]))
-print('')
+        ax.bar_label(rects1, padding=3)
+        ax.bar_label(rects2, padding=3)
+
+        fig.tight_layout()
+
+        plt.savefig('/Users/jarroyo/OneDrive - California Institute of Technology/SURF 2021 - Kreiman Lab/Results Julio Arroyo/array_{}_fixations'.format(num_fixations))
+        plt.show()
+
+        
+def plot_results(results1, results2, results3, num_trials):
+    for num_fixations in results1.keys():
+        l1 = list(results1[num_fixations].values())
+        l2 = list(results2[num_fixations].values())
+        cosine = list(results3[num_fixations].values())
+        
+        x = np.arange(1,7 - num_fixations)  # the label locations
+        width = 0.28  # the width of the bars
+
+        fig, ax = plt.subplots()
+        rects1 = ax.bar(x - width, l1, width, label='L1')
+        rects2 = ax.bar(x, l2, width, label='L2')
+        rects3 = ax.bar(x + width, cosine, width, label='cosine')
+        
+        plural = 's'
+        if num_fixations == 1:
+            plural = ''
+
+        # Add some text for labels, title and custom x-axis tick labels, etc.
+        ax.set_ylabel('Frequency')
+        ax.set_title('Trials with {} error fixation{}'.format(num_fixations, plural))
+        ax.set_xlabel('Number of inferences to find target')
+        ax.set_xticks(x)
+        ax.legend()
+
+        ax.bar_label(rects1, padding=3)
+        ax.bar_label(rects2, padding=3)
+        ax.bar_label(rects3, padding=3)
+
+        fig.tight_layout()
+
+        plt.savefig('/Users/jarroyo/OneDrive - California Institute of Technology/SURF 2021 - Kreiman Lab/Results Julio Arroyo/cosinel1l2_array_{}_fixations'.format(num_fixations))
+        plt.show()
+    
+    # Plotting relative performance
+    avg_num_inferences_model = [None] * 6
+    results = [results1, results2, results3]  # TODO: Make single results parameter a matrix instead of taking in a number of parameters for each result
+    avg_num_inferences_chance = [None, 3, 2.5, 2, 1.5, None]  # i-th element means the average number of inferences needed by chance to correctly guess target given i fixations.
+    markers = ['-or', '-sb', '-^g']
+    
+    for l in range(len(results)):
+        for i in range(1, 5):
+            total = 0
+            for j in range(1, len(results[l][i]) + 1):
+                total += results[l][i][j] * j
+            avg_num_inferences_model[i] = total / num_trials[i]
+        
+        relative_performance = [None] * 4
+        for i in range(4):
+            relative_performance[i] = 100 * ((avg_num_inferences_chance[i + 1] - avg_num_inferences_model[i + 1]) / avg_num_inferences_chance[i + 1])
+        x = np.arange(1,5)
+        plt.plot(x, relative_performance, markers[l])
+        print('Model {}: average number of inferences {}'.format(l, avg_num_inferences_model))
+        print('Result {}: relative performance {}'.format(l, relative_performance))
+    plt.show()
+
+# TODO: Measure skewness of data? Relative performance, measure over/under chance
+
+# inferences_l1 = infer_target('L1')
+# inferences_l2 = infer_target('L2')
+# inferences_cosine = infer_target('cosine')
+inferences_l1 = {1: {1: 149, 2: 151, 3: 144, 4: 161, 5: 168}, 2: {1: 151, 2: 153, 3: 133, 4: 107}, 3: {1: 133, 2: 103, 3: 106}, 4: {1: 116, 2: 85}}
+inferences_l2 = {1: {1: 151, 2: 149, 3: 136, 4: 158, 5: 179}, 2: {1: 149, 2: 159, 3: 122, 4: 114}, 3: {1: 130, 2: 100, 3: 112}, 4: {1: 118, 2: 83}}
+inferences_cosine = {1: {1: 135, 2: 147, 3: 167, 4: 148, 5: 176}, 2: {1: 142, 2: 168, 3: 126, 4: 111}, 3: {1: 130, 2: 126, 3: 83}, 4: {1: 123, 2: 78}}
+num_trials = infer_target()
+plot_results(inferences_l1, inferences_l2, inferences_cosine, num_trials)
+
+print('Inferences L1: {}'.format(inferences_l1))
+print('Inferences L2: {}'.format(inferences_l2))
+print('Inferences cosine similarity: {}'.format(inferences_cosine))
+print('Number of trials by number of error fixations: {}'.format(num_trials))
+
